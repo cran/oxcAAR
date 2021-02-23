@@ -33,7 +33,8 @@ setOxcalExecutablePath <- function(path) {
 #'   \item{Windows}
 #'   \item{Darwin}
 #' }
-#' @param path The path to the directory where Oxcal is or should be stored. Default: "."
+#' @param path The path to the directory where Oxcal is or should be stored. Default: "tempdir()".
+#' I recommend thought to install it permanently.
 #'
 #' @return NULL
 #'
@@ -47,7 +48,7 @@ setOxcalExecutablePath <- function(path) {
 #' @export
 #'
 
-quickSetupOxcal <- function(os = Sys.info()["sysname"], path = "."){
+quickSetupOxcal <- function(os = Sys.info()["sysname"], path = tempdir()){
 
   # test if Oxcal is already setup correctly
   if (!("try-error" %in% class(try(suppressWarnings(oxcalCalibrate(5000, 25, "testdate")), silent = TRUE)))) {
@@ -104,16 +105,51 @@ getOxcalExecutablePath <- function() {
 
 formatDateAdBc <- function (value_to_print) {
   RVA <- abs(value_to_print)
-  suffix <- if (value_to_print < 0) "BC" else if (value_to_print > 0) "AD" else ""
-  paste(RVA, suffix)
+  suffix <- ""
+  if (!is.na(value_to_print)) {
+    suffix <- if (value_to_print < 0) " BC" else if (value_to_print > 0) " AD"
+  }
+  paste0(RVA, suffix)
 }
 
 formatFullSigmaRange <- function (sigma_range, name) {
-  sigma_str <- ""
+  if(all(is.na(sigma_range))) return(NA)
+  sigma_str <- character(length = nrow(sigma_range))
   if (length(sigma_range[,1]) > 0) {
-  sigma_min <- formatDateAdBc(round(min(sigma_range[,1])))
-  sigma_max <- formatDateAdBc(round(max(sigma_range[,2])))
-  sigma_str <- sprintf("%11s: %s - %s",name, sigma_min,sigma_max)
+    sigma_str <- apply(sigma_range,1,
+                       function(x) sprintf("%s - %s (%s%%)",
+                                           formatDateAdBc(round(x[1])),
+                                           formatDateAdBc(round(x[2])),
+                                           round(x[3], 2)))
+  sigma_str <- paste(sigma_str, collapse="\n")
+  sigma_str <- paste(name,sigma_str, sep = "\n")
   }
-  sigma_str
+  return(sigma_str)
+}
+
+side_by_side_output <- function(left, right) {
+  RVA <- ""
+  if(is.na(left)) {left <- "NA"}
+  if(is.na(right)) {right <- "NA"}
+  left_vec_tmp <- unlist(strsplit(left,"\n"))
+  right_vec_tmp <- unlist(strsplit(right,"\n"))
+
+  lines <- max(length(left_vec_tmp),length(right_vec_tmp))
+
+  left_vec <- right_vec <- rep("",times = lines)
+
+  if(length(left_vec_tmp)>0){
+  left_vec[1:length(left_vec_tmp)] <- left_vec_tmp
+  }
+  if(length(right_vec_tmp)>0){
+  right_vec[1:length(right_vec_tmp)] <- right_vec_tmp
+  }
+  if(lines>0){
+  for(i in 1:lines){
+    RVA <- paste(RVA,sprintf("%s %s",
+                             paste(left_vec[i],strrep(" ", 30-nchar(left_vec[i])),sep = ""),
+                             right_vec[i]),sep="\n")
+  }
+  }
+  return(RVA)
 }

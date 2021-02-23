@@ -19,54 +19,151 @@ print.oxcAARCalibratedDatesList <- function(x, ...){
 }
 
 #' @export
-plot.oxcAARCalibratedDatesList <- function(x, ...){
-  if (length(x) == 1) graphics::plot(x[[1]],...)
+plot.oxcAARCalibratedDatesList <- function(x, use_ggplot = T, ...){
+  if (length(x) == 1) plot(x[[1]], use_ggplot, ...)
   else{
-    #     if (requireNamespace("ggplot2", quietly = TRUE)) {
-    #       #  if (FALSE) {
-    #       plotoxcAARCalibratedDatesListGGPlot2(x, ...)
-    #     } else {
-    plotoxcAARCalibratedDatesListSystemGraphics(x, ...)
-    # }
+    if (requireNamespace("ggplot2", quietly = TRUE) & use_ggplot) {
+      plotoxcAARCalibratedDatesListGGPlot2(x, ...)
+    } else {
+      plotoxcAARCalibratedDatesListSystemGraphics(x, ...)
+    }
   }
 }
 
+plotoxcAARCalibratedDatesListGGPlot2<-function(x, ...){
+  .data <- NULL
+  to_plot<-lapply(x,function(y){
+    alpha <- ifelse((!(is.null(y$posterior_probabilities))& !(is.na(y$posterior_probabilities))),
+                    c(0.25,0.75),
+                      c(0.75,0)
+                      )
+    outdata <- data.frame(
+      dates=y$raw_probabilities$dates,
+      probability=y$raw_probabilities$probabilities,
+      name=y$name,
+      class = "unmodelled",
+      alpha=alpha[1])
+    if(!(is.null(y$posterior_probabilities)) & !(is.na(y$posterior_probabilities))) {
+      outdata <- rbind(outdata,
+                   data.frame(
+                     dates=y$posterior_probabilities$dates,
+                     probability=y$posterior_probabilities$probabilities,
+                     name=y$name,
+                     class = "modelled",
+                     alpha=alpha[2])
+      )
+    }
+    return(outdata)
+
+  })
+  to_plot <- do.call(rbind,to_plot)
+
+  m <- ggplot2::ggplot(to_plot)
+
+  graph <- m + ggridges::geom_ridgeline(ggplot2::aes(x = .data$dates,
+                                  y = .data$name,
+                                  height = .data$probability,
+                                  alpha = .data$alpha,
+                                  group = interaction(.data$class,.data$name)),
+                              scale=100,
+                              fill = "#fc8d62",
+                              color="#00000077") +
+    ggplot2::theme_light() + ggplot2::labs(y="Dates")  +
+    ggplot2::scale_alpha_continuous(guide = FALSE)
+
+  methods::show(graph)
+}
 
 plotoxcAARCalibratedDatesListSystemGraphics <- function(x, ...){
   op <- graphics::par(no.readonly = TRUE)
+  years <- years_post <- NA
+
   indices <- 1:length(x)
+
   min_year <- min(
     sapply(
       indices,
-      function(i) min(x[[i]]$raw_probabilities$dates)
-    )
+      function(i) {
+        this_year_range <- get_years_range(x[[i]])
+        if (!all(is.na(this_year_range))) {
+          min(this_year_range, na.rm=T)
+        } else {
+          NA
+        }
+      }
+    ), na.rm=T
   )
+
   max_year <- max(
     sapply(
       indices,
-      function(i) max(x[[i]]$raw_probabilities$dates)
-    )
+      function(i) {
+        this_year_range <- get_years_range(x[[i]])
+        if (!all(is.na(this_year_range))) {
+          max(this_year_range, na.rm=T)
+        } else {
+          NA
+        }
+      }
+    ), na.rm=T
   )
-  graphics::par(mfrow=c(length(x),1))
-  graphics::par(oma = c(3,4,2,3) + 0.1,
+
+  graphics::par(mfrow=c(length(x)+1,1))
+
+  graphics::par(oma = c(3,1,2,2) + 0.1,
                 mar = c(0,1,0,1) + 0.1)
+
   for (i in indices) {
-    years <- x[[i]]$raw_probabilities$dates
-    probability <- x[[i]]$raw_probabilities$probabilities
-    max_prob <- max(probability)
+    max_prob <- 0
+    years <- probability <- NA
+    post_present <- prob_present <- FALSE
+
+    if(class(x[[i]]$raw_probabilities)=="data.frame") {
+      prob_present <- TRUE
+      years <- x[[i]]$raw_probabilities$dates
+      probability <- x[[i]]$raw_probabilities$probabilities
+      max_prob <- max(probability)
+    }
+
+    unmodelled_color <- "lightgrey"
+
+    years_post <- probability_post <- NA
+
+    if(class(x[[i]]$posterior_probabilities)=="data.frame") {
+      post_present <- TRUE
+      years_post <- x[[i]]$posterior_probabilities$dates
+      probability_post <- x[[i]]$posterior_probabilities$probabilities
+      unmodelled_color <- "#eeeeeeee"
+      max_prob <- max(max_prob, probability_post)
+    }
+
+    if(!prob_present & !post_present)
+    {
+      year_range <-c(0,1)
+    } else {
+      year_range <- get_years_range(x[[i]])
+    }
+
     graphics::plot(
-      years, probability,
+      years,
+      probability,
       type = "n",
       ylim=c(max_prob / 7 * -1,max_prob),
-      xlim = c(min_year, max_year),
+      xlim = c(min_year,max_year),
       axes = FALSE
     )
     graphics::axis(side=4)
-    graphics::polygon(years, probability, col="lightgrey")
-    graphics::mtext(x[[i]]$name,side=2,las=2,cex=0.6)
+    graphics::polygon(years, probability, border = "black", col = unmodelled_color)
+    if (unmodelled_color!="lightgrey"){
+      graphics::polygon(years_post, probability_post, border = "black", col = "#aaaaaaaa")
+    }
+    graphics::text(x=min_year, y=max_prob, labels=print_label(x[[i]]),las=2,cex=0.6, adj=0)
     graphics::grid()
   }
-  graphics::axis(side=1)
+  plot(c(min_year,max_year),c(0,0),
+       axes = FALSE,
+       type="n")
+  graphics::axis(side=1, pretty(c(min_year, max_year)))
   graphics::par(op)
 }
 

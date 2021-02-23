@@ -34,8 +34,13 @@ get_bp(y)
 
 }
 \seealso{
-Other getter functions: \code{\link{get_cal_curve}},
-  \code{\link{get_name}},
-  \code{\link{get_raw_probabilities}},
-  \code{\link{get_sigma_ranges}}, \code{\link{get_std}}
+Other getter functions: 
+\code{\link{get_cal_curve}()},
+\code{\link{get_name}()},
+\code{\link{get_posterior_probabilities}()},
+\code{\link{get_posterior_sigma_ranges}()},
+\code{\link{get_raw_probabilities}()},
+\code{\link{get_sigma_ranges}()},
+\code{\link{get_std}()}
 }
+\concept{getter functions}
